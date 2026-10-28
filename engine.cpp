@@ -1,16 +1,21 @@
-#include <iostream> 
-#include <string>
+#include <bits/stdc++.h>
 
 using namespace std;
 
 
 using ULL = unsigned long long;
 
+typedef struct Move {
+    int from;
+    int to;
+} Move;
+
 
 class CBoard {
     ULL pieceBB[8] = {0};
     bool whiteTurn = true;
     int castlingRights = 0;
+    
 
     public:
         enum enumColor {
@@ -49,6 +54,7 @@ class CBoard {
     void removeCastleR(enumCastlingR cr) { castlingRights &= ~cr; }
     bool isWhiteTurn() const { return whiteTurn; }
     void switchTurn() { whiteTurn = (!whiteTurn); }
+    enumColor getEnemyColor(enumColor mycol) const { return (mycol == nWhite ? nBlack : nWhite); }
 
     
     ULL getPieces(enumColor color, enumType type) const { return pieceBB[color] & pieceBB[type]; }
@@ -155,8 +161,61 @@ class CBoard {
         }
     }
 
-    bool isTheKingInCheck(enumColor color) {
 
+    ULL getKnightAttackMask(int square) {
+        if (square < 0 || square >= 64) return 0;
+        ULL mask = 0;
+
+        static constexpr array<pair<int, int>, 8> Kn_mov = {{
+            {2, 1}, {2, -1}, {1, 2}, {1, -2},
+            {-2, 1}, {-2, -1}, {-1, 2}, {-1, -2}
+        }};
+
+        int row = square/8;
+        int col = square%8;
+
+        for(auto &[x,y] : Kn_mov){
+            if(row + x >= 0 && row + x <= 7 && col + y >= 0 && col + y <= 7){
+                mask |= (1ULL << (col + y + (row + x)*8));
+            }
+        }
+    
+        return mask;
+    }
+
+    ULL getPawnAttackMask(int square, enumColor color) {
+        if (square < 0 || square >= 64 || color == nEmpty) return 0;
+
+        ULL mask = 0;
+
+        int row = square/8;
+        int col = square%8;
+
+        int k = (color == nWhite ? 1 : -1);
+
+        if(row + k >= 0 && row + k <= 7 && col + k >= 0 && col + k <= 7)
+            mask |= (1ULL << (col + k + (row + k)*8));
+        if(row + k >= 0 && row + k <= 7 && col - k >= 0 && col - k <= 7)
+            mask |= (1ULL << (col - k + (row + k)*8));
+        
+        return mask;
+    }
+
+    bool isTheKingInCheck(enumColor color) {
+        ULL mask_king = getPieces(color,nKing);
+        if(mask_king == 0) return false;
+
+        int pos = __builtin_ctzll(mask_king);
+
+        enumColor enemyCol = getEnemyColor(color);
+
+        if(getKnightAttackMask(pos) & getPieces(enemyCol,nKnight)) return true;
+
+        if(getPawnAttackMask(pos, color) & getPieces(enemyCol,nPawn)) return true;
+        
+        //...
+        
+        return false;
     }
 
     // generar movimientos pseudo-legales para cada tipo de pieza por separado
@@ -168,6 +227,12 @@ class CBoard {
     bool moveKing(int from, int to){}
 
     // movimientos legales
+    vector<Move> generateLegalMoves() {
+        vector<Move> moves;
+
+
+    }
+
     void makeMove(int from, int to){}
 
 
