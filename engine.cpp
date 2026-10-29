@@ -59,6 +59,8 @@ class CBoard {
     
     ULL getPieces(enumColor color, enumType type) const { return pieceBB[color] & pieceBB[type]; }
 
+    ULL getPiecesColor(enumColor color) const { return (color == nWhite ? getWhitePieces() : getBlackPieces()); }
+
     enumColor getPieceColor(int square) const {
         if (square < 0 || square >= 64) return nEmpty;
 
@@ -201,6 +203,109 @@ class CBoard {
         return mask;
     }
 
+    ULL getKingAttackMask(int square){
+        if (square < 0 || square >= 64) return 0;
+
+        ULL mask = 0;
+
+        int row = square/8;
+        int col = square%8;
+
+        static constexpr array<pair<int, int>, 8> K_mov = {{
+            {1, 0}, {0, 1}, {1, 1}, {0, -1},
+            {-1, 0}, {1, -1}, {-1, 1}, {-1, -1}
+        }};
+
+        for(auto &[x,y] : K_mov){
+            if(row + x <= 7 && row + x >= 0 && col + y <= 7 && col + y >= 0)
+                mask |= (1ULL << (col + y + (row + x)*8));
+        }
+
+        return mask;
+    }
+
+    ULL getBishopAttackMask(int square, enumColor color){
+        if (square < 0 || square >= 64) return 0;
+
+        ULL mask = 0;
+
+        int row = square/8;
+        int col = square%8;
+
+        static constexpr array<pair<int, int>, 4> B_mov = {{
+            {1, 1}, {-1, 1}, {1, -1}, {-1, -1}
+        }};
+
+        // la ultima pieza que ataca un alfil es el borde del tablero, una casilla ANTES de una pieza del mismo color 
+        // o la primer pieza enemiga que encuentre
+
+        int k;
+        ULL mask_enemy_pieces = getPiecesColor(getEnemyColor(color));
+        ULL mask_all_pieces = getAllPieces();
+        for(auto &[x,y] : B_mov){
+            k = 1;
+            int tmppos = (col + y*k + (row + x*k)*8);
+            while(row + x*k <= 7 && row + x*k >= 0 &&
+                col + y*k <= 7 && col + y*k >= 0 && 
+                (mask_all_pieces & (1ULL << tmppos)) == 0)
+            {
+                mask |= (1ULL << tmppos);
+                k++;
+                tmppos = (col + y*k + (row + x*k)*8);
+            }
+            tmppos = (col + y*k + (row + x*k)*8);
+            if(row + x*k <= 7 && row + x*k >= 0 &&
+                col + y*k <= 7 && col + y*k >= 0 && 
+                (mask_enemy_pieces & (1ULL << tmppos)) != 0) 
+                    mask |= (1ULL << tmppos); 
+        }
+
+        return mask;
+    }
+
+    ULL getRookAttackMask(int square, enumColor color){
+        if (square < 0 || square >= 64) return 0;
+
+        ULL mask = 0;
+
+        int row = square/8;
+        int col = square%8;
+
+        static constexpr array<pair<int, int>, 4> R_mov = {{
+            {1, 0}, {0, 1}, {0, -1}, {-1, 0}
+        }};
+
+        // la ultima pieza que ataca una torre es el borde del tablero, una casilla ANTES de una pieza del mismo color 
+        // o la primer pieza enemiga que encuentre
+
+        int k;
+        ULL mask_enemy_pieces = getPiecesColor(getEnemyColor(color));
+        ULL mask_all_pieces = getAllPieces();
+        for(auto &[x,y] : R_mov){
+            k = 1;
+            int tmppos = (col + y*k + (row + x*k)*8);
+            while(row + x*k <= 7 && row + x*k >= 0 &&
+                col + y*k <= 7 && col + y*k >= 0 && 
+                (mask_all_pieces & (1ULL << tmppos)) == 0)
+            {
+                mask |= (1ULL << tmppos);
+                k++;
+                tmppos = (col + y*k + (row + x*k)*8);
+            }
+            tmppos = (col + y*k + (row + x*k)*8);
+            if(row + x*k <= 7 && row + x*k >= 0 &&
+                col + y*k <= 7 && col + y*k >= 0 && 
+                (mask_enemy_pieces & (1ULL << tmppos)) != 0) 
+                    mask |= (1ULL << tmppos); 
+        }
+
+        return mask;
+    }
+
+    ULL getQueenAttackMask(int square, enumColor color) {
+        return (getBishopAttackMask(square, color) | getRookAttackMask(square, color));
+    }
+
     bool isTheKingInCheck(enumColor color) {
         ULL mask_king = getPieces(color,nKing);
         if(mask_king == 0) return false;
@@ -213,8 +318,17 @@ class CBoard {
 
         if(getPawnAttackMask(pos, color) & getPieces(enemyCol,nPawn)) return true;
         
-        //...
+        if(getKingAttackMask(pos) & getPieces(enemyCol, nKing)) return true;
         
+        ULL mask_enemy_queen = getPieces(enemyCol, nQueen);
+        ULL mask_rook = getRookAttackMask(pos, color);
+        if(mask_rook & getPieces(enemyCol, nRook)) return true;
+        if(mask_rook & mask_enemy_queen) return true;
+
+        ULL mask_bishop = getBishopAttackMask(pos, color);
+        if(mask_bishop & getPieces(enemyCol, nBishop)) return true;
+        if(mask_bishop & mask_enemy_queen) return true;
+
         return false;
     }
 
